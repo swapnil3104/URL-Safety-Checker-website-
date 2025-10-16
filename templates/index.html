@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>URL Safety Checker</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0f1115;
+        --fg: #e6e6ea;
+        --muted: #9aa4b2;
+        --accent: #7c3aed; /* violet-600 */
+        --accent-600: #6d28d9; /* violet-700 */
+        --accent-700: #5b21b6; /* violet-800 */
+        --success: #22c55e; /* green-500 */
+        --warning: #f59e0b; /* amber-500 */
+        --danger: #ef4444;  /* red-500 */
+        --card: #141821;
+        --border: #2a2f3a;
+      }
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 2rem; background: var(--bg); color: var(--fg); }
+      .container { max-width: 1000px; margin: 0 auto; }
+      .brand { background: linear-gradient(180deg, rgba(124,58,237,0.12), rgba(124,58,237,0.02)); border: 1px solid var(--border); border-radius: 16px; padding: 1.25rem 1.25rem; margin-bottom: 1rem; }
+      .brand h1 { margin: 0 0 0.1rem; font-size: 2.25rem; line-height: 1.1; font-weight: 800; }
+      .brand .subtitle { margin: 0; color: var(--muted); }
+      form { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; }
+      input[type="url"] { flex: 1; padding: 0.9rem 1rem; font-size: 1.05rem; border-radius: 12px; border: 1px solid var(--border); background: #1a1d24; color: var(--fg); }
+      button { padding: 0.9rem 1.15rem; font-size: 1rem; cursor: pointer; border-radius: 12px; border: 1px solid var(--border); background: #1a1d24; color: var(--fg); transition: background .2s ease, transform .05s ease, border-color .2s ease; }
+      button:active { transform: translateY(1px); }
+      .btn-primary { background: var(--accent); border-color: #5b21b6; color: white; }
+      .btn-primary:hover { background: var(--accent-600); }
+      .btn-primary:active { background: var(--accent-700); }
+      .samples { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
+      .chip { padding: 0.45rem 0.7rem; border-radius: 999px; border: 1px solid var(--border); cursor: pointer; font-size: 0.95rem; background: #171b22; color: var(--fg); }
+      .chip:hover { background: #1b2029; border-color: #343b47; }
+      .note { font-size: 0.92rem; opacity: 0.85; margin-bottom: 1rem; }
+      .row { display: grid; grid-template-columns: 1.2fr 1fr; gap: 1.25rem; align-items: start; }
+      .card { border: 1px solid var(--border); background: var(--card); border-radius: 14px; padding: 1.1rem; }
+      .card.accent { border-top: 3px solid var(--accent); }
+      .card h2 { margin-top: 0; font-size: 1.1rem; }
+      .risk { font-weight: 700; }
+      .risk-badge { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 999px; font-weight: 700; font-size: 0.92rem; }
+      .risk-low { color: var(--success); }
+      .risk-medium { color: var(--warning); }
+      .risk-high { color: var(--danger); }
+      .badge-low { background: color-mix(in srgb, var(--success) 15%, Canvas 85%); color: color-mix(in srgb, var(--success) 80%, Canvas 20%); }
+      .badge-medium { background: color-mix(in srgb, var(--warning) 18%, Canvas 82%); color: color-mix(in srgb, var(--warning) 80%, Canvas 20%); }
+      .badge-high { background: color-mix(in srgb, var(--danger) 18%, Canvas 82%); color: color-mix(in srgb, var(--danger) 85%, Canvas 15%); }
+      .factors { margin: 0.25rem 0 0; padding-left: 1.2rem; }
+      .pill { display: inline-block; padding: 0.28rem 0.55rem; border-radius: 999px; border: 1px solid var(--border); margin-right: 0.35rem; font-size: 0.9rem; background: #171b22; }
+      .muted { color: var(--muted); }
+      .error { color: var(--danger); }
+      .loading { opacity: 0.8; }
+      pre { background: color-mix(in srgb, Canvas, CanvasText 4%); padding: 1rem; border-radius: 8px; overflow: auto; }
+      @media (max-width: 900px) {
+        body { margin: 1rem; }
+        form { flex-wrap: wrap; }
+        form > input[type="url"] { min-width: 100%; }
+        form > button { width: 100%; }
+        .row { grid-template-columns: 1fr; gap: 0.9rem; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="brand">
+        <h1>URL Safety Checker</h1>
+        <p class="subtitle">Check a URL for phishing/malware indicators using heuristics and optional threat intelligence.</p>
+      </div>
+      <form id="check-form">
+        <input id="url-input" type="url" placeholder="https://example.com/login" required />
+        <button type="submit" class="btn-primary">Check</button>
+      </form>
+      <div class="samples" id="samples"></div>
+      <div id="status" class="muted"></div>
+
+      <div class="row">
+        <div class="card accent" id="summary-card">
+          <h2>Overall Risk</h2>
+          <div id="overall"></div>
+          <div class="muted" id="url-display"></div>
+          <div id="factors-wrap" hidden>
+            <h3 style="margin-bottom:0.25rem;">Risk factors</h3>
+            <ul class="factors" id="factors"></ul>
+          </div>
+        </div>
+        <div class="card" id="intel-card">
+          <h2>Threat Intelligence</h2>
+          <div id="intel"></div>
+          <div class="muted">Configure keys in <code>.env</code> to enable providers.</div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:1rem;">
+        <h2>Raw Result</h2>
+        <pre id="output" hidden></pre>
+      </div>
+    </div>
+
+    <script>
+      const form = document.getElementById('check-form');
+      const input = document.getElementById('url-input');
+      const output = document.getElementById('output');
+      const status = document.getElementById('status');
+      const samples = document.getElementById('samples');
+      const overall = document.getElementById('overall');
+      const urlDisplay = document.getElementById('url-display');
+      const factorsWrap = document.getElementById('factors-wrap');
+      const factors = document.getElementById('factors');
+      const intel = document.getElementById('intel');
+
+      const sampleLinks = [
+        'https://example.com',
+        'http://example.com/login?session=1',
+        'http://192.168.1.5/pay',
+        'https://bit.ly/free-gift',
+        'https://secure-login.example.xyz/verify?account=you'
+      ];
+
+      function renderSamples() {
+        samples.innerHTML = '';
+        sampleLinks.forEach(u => {
+          const el = document.createElement('button');
+          el.type = 'button';
+          el.className = 'chip';
+          el.textContent = u;
+          el.addEventListener('click', () => {
+            input.value = u;
+            form.requestSubmit();
+          });
+          samples.appendChild(el);
+        });
+      }
+
+      function setStatus(text, cls = 'muted') {
+        status.className = cls;
+        status.textContent = text;
+      }
+
+      function renderIntel(d) {
+        const parts = [];
+        const providers = d.external || {};
+        if (Object.keys(providers).length === 0) {
+          parts.push('<span class="muted">No external providers configured.</span>');
+        }
+        if (providers.google_safe_browsing) {
+          const g = providers.google_safe_browsing;
+          if (g.ok) {
+            parts.push(`<div class="pill">Google Safe Browsing: ${g.malicious ? '<span class=\'risk-high\'>malicious</span>' : 'clean'}</div>`);
+          } else {
+            parts.push(`<div class="pill">Google Safe Browsing: <span class="muted">${g.error || 'error'}</span></div>`);
+          }
+        }
+        if (providers.virustotal) {
+          const v = providers.virustotal;
+          if (v.ok) {
+            if (v.pending) {
+              parts.push('<div class="pill">VirusTotal: pending</div>');
+            } else {
+              parts.push(`<div class="pill">VirusTotal: ${v.malicious ? '<span class=\'risk-high\'>malicious</span>' : 'clean'}</div>`);
+            }
+          } else {
+            parts.push(`<div class="pill">VirusTotal: <span class="muted">${v.error || 'error'}</span></div>`);
+          }
+        }
+        intel.innerHTML = parts.join('');
+      }
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const url = input.value.trim();
+        if (!url) return;
+        setStatus('Checking...', 'loading');
+        output.hidden = true;
+        overall.textContent = '';
+        urlDisplay.textContent = '';
+        factorsWrap.hidden = true;
+        intel.innerHTML = '';
+        try {
+          const res = await fetch('/api/check', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url })
+          });
+          const data = await res.json();
+          if (!data.ok) {
+            setStatus(`Error: ${data.error || 'Unknown error'}`, 'error');
+            return;
+          }
+          const d = data.data;
+          const level = d.overall_risk_level;
+          const cls = level === 'high_risk' ? 'risk-high' : (level === 'medium_risk' ? 'risk-medium' : 'risk-low');
+          const badge = level === 'high_risk' ? 'badge-high' : (level === 'medium_risk' ? 'badge-medium' : 'badge-low');
+          overall.innerHTML = `Risk: <span class="risk-badge ${badge}">${level.replace('_', ' ')}</span> · Score: <span class="risk ${cls}">${d.overall_risk_score}</span>`;
+          urlDisplay.textContent = d.input_url || url;
+          const factorsList = d.heuristics?.risk_factors || [];
+          factors.innerHTML = '';
+          if (factorsList.length) {
+            factorsWrap.hidden = false;
+            factorsList.forEach(f => {
+              const li = document.createElement('li');
+              li.textContent = f;
+              factors.appendChild(li);
+            });
+          }
+          renderIntel(d);
+          output.textContent = JSON.stringify(d, null, 2);
+          output.hidden = false;
+          setStatus('');
+        } catch (err) {
+          setStatus('Network error', 'error');
+        }
+      });
+
+      renderSamples();
+    </script>
+  </body>
+  </html>
+
+
